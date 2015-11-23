@@ -2,29 +2,23 @@
  * GET/POST hosts page
  */
 
-exports.hosts = function(params) {
+var config = require('../config')
+
+allowAccess = function(req) {
+	return (
+		( req.session.loggedIn && (req.session.user.Role == 'Admin') ) ||
+		( (req.body.APIKey !== undefined) && config.validateAPIKey(req.body.APIKey) )
+		); 
+}
+
+insertHostByGroupId = function(params, req, res, idGroup) {
 	var config = params.config;
 	var db = params.db;
-	return function(req, res) {
 
-		if ((!req.session.loggedIn) || (req.session.user.Role != 'Admin')) {
-			res.redirect('/login');
-		} else if (req.body.delete !== undefined) {
-			if (req.params.idHost) {
-				params.db('hosts').delete()
-				.where('idHost', req.params.idHost)
-				.exec(function() {
-					params.config.readHosts(params.db, function(){
-						res.redirect('/hosts');
-					});
-				});
-			}
-		} else if (req.body.submit !== undefined) {
-			if (req.params.idHost == 'new') {
 				params.db('hosts').insert({
 					Name: req.body.name,
 					Url: req.body.url,
-					idGroup: req.body.group,
+					idGroup: idGroup,
 				}, 'idHost').exec(function(err, insertId){
 					params.config.readHosts(params.db, function(){
 						if (err !== null) {
@@ -35,6 +29,69 @@ exports.hosts = function(params) {
 						}
 					});
 				});
+}
+
+deleteHostByHostId = function(params, req, res, idHost) {
+				params.db('hosts').delete()
+				.where('idHost', idHost)
+				.exec(function() {
+					params.config.readHosts(params.db, function(){
+						res.redirect('/hosts');
+					});
+				});
+}
+
+exports.hosts = function(params) {
+	var config = params.config;
+	var db = params.db;
+	return function(req, res) {
+		if (!allowAccess(req)) {
+			res.redirect('/login');
+		} else if (req.body.delete !== undefined) {
+			req.params.idHost
+			if (isNaN(req.params.idHost)) {
+                                var nameHost = req.params.idHost; // req.body.nameHost;
+				params.db('hosts').select('idHost')
+                                .where('Name', nameHost)
+                                .exec(function(err, hosts) {
+					if (hosts.length > 0) {
+						var newHostId = hosts[0].idHost;
+                                		deleteHostByHostId(params, req, res, newHostId);
+					} else {
+							res.redirect('/hosts');
+					}
+				})
+			} else if (req.params.idHost) {
+                                deleteHostByHostId(params, req, res, req.params.idHost);
+			}
+		} else if (req.body.submit !== undefined) {
+			if (req.params.idHost == 'new') {
+
+                                var qry = params.db('groups');
+
+                                // if request inserting and group not an id, look up id
+                                if (isNaN(req.body.group)) {
+					qry.select('idGroup').where('Name', req.body.group)
+					.exec(function(err, groups){
+                                              // if group not found, insert it
+						if (groups.length == 0) {
+							qry.insert({
+								Name: req.body.group,
+							}, 'idGroup').exec(function(err, insertId){
+                                                                var newGroupId = insertId[0];
+								insertHostByGroupId(params, req, res, newGroupId);
+							})
+						} else {
+							// else group found, use it
+							var gotGroupId = groups[0].idGroup;
+							insertHostByGroupId(params, req, res, gotGroupId);
+							}
+						});
+                                } else {
+                                      var groupId = req.body.group;
+                                      insertHostByGroupId(params, req, res, groupId);
+                                }
+
 			} else {
 				var info = {
 					Name: req.body.name,

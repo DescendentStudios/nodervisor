@@ -66,4 +66,9 @@ config.readHosts = function(db, callback){
 	});
 };
 
+config.validateAPIKey = function(check) {
+	// HACK: hardcode the API secret for now
+	return (check == '***REMOVED***');
+}
+
 module.exports = config;
