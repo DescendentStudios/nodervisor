@@ -46,6 +46,8 @@ config.sessionstore = {
 config.port = process.env.PORT || 3000;
 config.env = process.env.ENV || 'production';
 config.sessionSecret = process.env.SECRET || '1234567890ABCDEF';
+// must set an API key or it will be disabled
+config.APISecret = process.env.APISECRET || '';
 
 // Read and write settings
 config.readHosts = function(db, callback){
@@ -67,8 +69,7 @@ config.readHosts = function(db, callback){
 };
 
 config.validateAPIKey = function(check) {
-	// HACK: hardcode the API secret for now
-	return (check == '***REMOVED***');
+	return ( (config.APISecret != '') && (check == config.APISecret) );
 }
 
 module.exports = config;
